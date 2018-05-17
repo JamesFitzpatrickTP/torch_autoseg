@@ -2,9 +2,137 @@ import torch
 import torch.nn as nn
 
 
-def conv_conv(filt_size, in_filt, out_filt):
-    return nn.Sequential(
-        nn.Conv2d(in_filt, out_filt, filt_size, 1, 1),
-        nn.ReLU(),
-        nn.Conv2d(out_filt, out_filt, filt_size, 1, 1),
-        nn.ReLU())
+
+def canon_conv(in_maps, out_maps, kernel_size, stride=1, padding=1, dilation=1):
+    return nn.Conv2d(
+        in_channels=in_maps,
+        out_channels=out_maps,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=1,
+        dilation=dilation)
+
+
+def max_pool(kernel_size, stride=None, padding=0, dilation=1):
+    return nn.MaxPool2d(
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+        
+        dilation=1)
+
+
+def frac_conv(in_maps, out_maps, kernel_size, stride=1, padding=0, dilation=1):
+    return nn.ConvTranspose2d(
+        in_channels=in_maps,
+        out_channels=out_maps,
+        kernel_size=kernel_size,
+        padding=padding,
+        stride=stride,
+        dilation=1)
+
+
+def conv_one(in_maps, out_maps, stride=1, padding=0, dilation=1):
+    return nn.Conv2d(
+        in_channels=in_maps,
+        out_channels=out_maps,
+        kernel_size=1,
+        stride=stride,
+        padding=padding,
+        dilation=dilation)
+
+
+
+class conv_conv(nn.Module):
+    def __init__(self, in_maps, out_maps, kernel_size):
+        super(conv_conv, self).__init__()
+        
+        self.in_maps = in_maps
+        self.out_maps = out_maps
+        self.kernel_size = kernel_size
+
+        self.conv_a = canon_conv(self.in_maps, self.out_maps, self.kernel_size)
+        self.conv_b = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
+        
+    def forward(self, tensor):
+        tensor = nn.functional.relu(self.conv_a(tensor))
+        tensor = nn.functional.relu(self.conv_b(tensor))
+        return tensor
+
+    
+class pool_conv_conv(nn.Module):
+    def __init__(self, in_maps, out_maps, kernel_size, pool_size):
+        super(pool_conv_conv, self).__init__()
+        
+        self.in_maps = in_maps
+        self.out_maps = out_maps
+        self.kernel_size = kernel_size
+        self.pool_size = pool_size
+
+        self.conv_a = canon_conv(self.in_maps, self.out_maps, self.kernel_size)
+        self.conv_b = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
+        self.pool = max_pool(self.pool_size) 
+        
+    def forward(self, tensor):
+        tensor = self.pool(tensor)
+        tensor = nn.functional.relu(self.conv_a(tensor))
+        tensor = nn.functional.relu(self.conv_b(tensor))
+        return tensor
+
+    
+class conv_conv_one(nn.Module):
+    def __init__(self, in_maps, out_maps, kernel_size, class_num):
+        super(conv_conv_one, self).__init__()
+        
+        self.in_maps = in_maps
+        self.out_maps = out_maps
+        self.kernel_size = kernel_size
+        self.class_num = class_num
+
+        self.conv_a = canon_conv(self.in_maps, self.out_maps, self.kernel_size)
+        self.conv_b = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
+        self.conv_c = conv_one(self.out_maps, self.class_num)
+        
+    def forward(self, tensor):
+        tensor = nn.functional.relu(self.conv_a(tensor))
+        tensor = nn.functional.relu(self.conv_b(tensor))
+        tensor = nn.functional.sigmoid(self.conv_c(tensor))
+        return tensor
+
+    
+class up_copy(nn.Module):
+    def __init__(self, in_maps, out_maps up_kernel_size):
+        super(up_copy, self).__init__()
+        
+        self.in_maps = in_maps
+        self.out_maps = out_maps
+        self.class_num = class_num
+        self.up_kernel_size = up_kernel_size
+        
+        self.conv_a = frac_conv(self.in_maps, self.out_maps, self.up_kernel_size)
+        
+    def forward(self, tensor_a, tensor_b):
+        tensor = torch.cat((tensor_a, tensor_b), axis=0)
+        tensor = nn.functional.relu(self.conv_a(tensor))
+        return tensor    
+
+
+class up_copy_conv(nn.Module):
+    def __init__(self, in_maps, out_maps, kernel_size, up_kernel_size):
+        super(up_copy_conv, self).__init__()
+        
+        self.in_maps = in_maps
+        self.out_maps = out_maps
+        self.kernel_size = kernel_size
+        self.up_kernel_size = up_kernel_size
+
+        self.conv_a = frac_conv(self.in_maps, self.out_maps, self.up_kernel_size)
+        self.conv_b = canon_conv(self.in_maps, self.out_maps, self.kernel_size)
+        self.conv_c = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
+        
+    def forward(self, tensor_a, tensor_b):
+        tensor = torch.cat((tensor_a, tensor_b), axis=0)
+        tensor = self.conv_a(tensor)
+        tensor = nn.functional.relu(self.conv_b(tensor))
+        tensor = nn.functional.sigmoid(self.conv_c(tensor))
+        return tensor
