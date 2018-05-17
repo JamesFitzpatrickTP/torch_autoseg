@@ -71,7 +71,7 @@ class pool_conv_conv(nn.Module):
 
         self.conv_a = canon_conv(self.in_maps, self.out_maps, self.kernel_size)
         self.conv_b = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
-        self.pool = max_pool(self.pool_size) 
+        self.pool = max_pool(self.pool_size, self.pool_size) 
         
     def forward(self, tensor):
         tensor = self.pool(tensor)
@@ -101,7 +101,7 @@ class conv_conv_one(nn.Module):
 
     
 class up_copy(nn.Module):
-    def __init__(self, in_maps, out_maps up_kernel_size):
+    def __init__(self, in_maps, out_maps, up_kernel_size):
         super(up_copy, self).__init__()
         
         self.in_maps = in_maps
@@ -134,5 +134,38 @@ class up_copy_conv(nn.Module):
         tensor = torch.cat((tensor_a, tensor_b), axis=0)
         tensor = self.conv_a(tensor)
         tensor = nn.functional.relu(self.conv_b(tensor))
+
         tensor = nn.functional.sigmoid(self.conv_c(tensor))
         return tensor
+
+
+class NeuralNetwork(nn.Module):
+    def __init__(self, layer_list, kernel_size, up_kernel_size, pool_size):
+        super(NeuralNetwork, self).__init__()
+        
+        self.layer_list = layer_list
+        self.kernel_size = kernel_size
+        self.up_kernel_size = up_kernel_size
+        self.pool_size = pool_size
+
+    def list_checker(self, layer_list):
+        if self.layer_list < 4:
+            raise ValueError('Not enough layers given')
+
+    def input_maps(self, layer_list):
+        return self.layer_list[0]
+
+
+    def forward(self, input_tensor):
+        maps = input_tensor.shape[1]
+        in_maps = self.input_maps(self.layer_list)
+        tensor = conv_conv(maps, in_maps, self.kernel_size)(input_tensor)
+
+        down_tensors = []
+        down_tensors.append(tensor)
+
+        for in_maps, out_maps in zip(self.layer_list, self.layer_list[1:]):
+            tensor = pool_conv_conv(in_maps, out_maps, self.kernel_size, self.pool_size)(tensor)
+            down_tensors.append(tensor)
+        return tensor
+            
