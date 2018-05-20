@@ -39,3 +39,13 @@ def set_loader(train_dir, truth_dir, idx_list=None):
     truth_imgs = data_loader(truth_dir, idx_list)
     return train_imgs, truth_imgs
     
+
+def roll_imgs(img_arr):
+    return np.rollaxis(img_arr, -1, 1)
+
+
+def torch_loader(train_dir, truth_dir, idx_list):
+    train_imgs, truth_imgs = set_loader(train_dir, truth_dir, idx_list)
+    train_imgs = torch.tensor(roll_imgs(train_imgs)).float()
+    truth_imgs = torch.tensor(np.expand_dims(truth_imgs, 1)).float()
+    return train_imgs, truth_imgs
