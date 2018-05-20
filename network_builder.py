@@ -22,7 +22,7 @@ def max_pool(kernel_size, stride=None, padding=0, dilation=1):
         dilation=1)
 
 
-def frac_conv(in_maps, out_maps, kernel_size, stride=1, padding=0, dilation=1):
+def frac_conv(in_maps, out_maps, kernel_size, stride=2, padding=0, dilation=1):
     return nn.ConvTranspose2d(
         in_channels=in_maps,
         out_channels=out_maps,
@@ -112,8 +112,8 @@ class up_copy(nn.Module):
         self.conv_a = frac_conv(self.in_maps, self.out_maps, self.up_kernel_size)
         
     def forward(self, tensor_a, tensor_b):
-        tensor = torch.cat((tensor_a, tensor_b), axis=0)
-        tensor = nn.functional.relu(self.conv_a(tensor))
+        tensor = self.conv_a(tensor_a)
+        tensor = torch.cat((tensor, tensor_b), 1)
         return tensor    
 
 
@@ -131,8 +131,8 @@ class up_copy_conv(nn.Module):
         self.conv_c = canon_conv(self.out_maps, self.out_maps, self.kernel_size)
         
     def forward(self, tensor_a, tensor_b):
-        tensor = torch.cat((tensor_a, tensor_b), axis=0)
-        tensor = self.conv_a(tensor)
+        tensor = self.conv_a(tensor_a)
+        tensor = torch.cat((tensor, tensor_b), 1)
         tensor = nn.functional.relu(self.conv_b(tensor))
 
         tensor = nn.functional.sigmoid(self.conv_c(tensor))
@@ -167,5 +167,15 @@ class NeuralNetwork(nn.Module):
         for in_maps, out_maps in zip(self.layer_list, self.layer_list[1:]):
             tensor = pool_conv_conv(in_maps, out_maps, self.kernel_size, self.pool_size)(tensor)
             down_tensors.append(tensor)
+
+        rev_a = reversed(self.layer_list[1:])
+        rev_b = reversed(self.layer_list[:-1])
+        rev_c = reversed(down_tensors[:-1])
+        
+        for in_maps, out_maps, old_tens in zip(rev_a, rev_b, rev_c):
+            fun = up_copy_conv(in_maps, out_maps, self.kernel_size, self.up_kernel_size)
+            tensor = fun(tensor, old_tens)
+
+        tensor = conv_one(self.layer_list[0], 1)(tensor)
+
         return tensor
-            
