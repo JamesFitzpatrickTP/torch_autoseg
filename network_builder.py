@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+import numpy as np
 
 
 def canon_conv(in_maps, out_maps, kernel_size, stride=1, padding=1, dilation=1):
@@ -148,6 +148,30 @@ class NeuralNetwork(nn.Module):
         self.up_kernel_size = up_kernel_size
         self.pool_size = pool_size
 
+        self.down_funs = []
+        self.up_funs = []
+
+        maps = self.layer_list[0]
+        self.layer_list = self.layer_list[1:]
+        in_maps = self.input_maps(self.layer_list)
+        
+        self.in_fun = conv_conv(maps, in_maps, self.kernel_size)
+        
+        for in_maps, out_maps in zip(self.layer_list, self.layer_list[1:]):
+            fun = pool_conv_conv(in_maps, out_maps, self.kernel_size, self.pool_size)
+            self.down_funs.append(fun)
+
+        rev_a = reversed(self.layer_list[1:])
+        rev_b = reversed(self.layer_list[:-1])
+            
+        for in_maps, out_maps in zip(rev_a, rev_b):
+            fun = up_copy_conv(in_maps, out_maps, self.kernel_size, self.up_kernel_size)
+            self.up_funs.append(fun)
+
+        self.out_fun = conv_one(self.layer_list[0], 1)
+        
+            
+    @staticmethod
     def list_checker(self, layer_list):
         if self.layer_list < 4:
             raise ValueError('Not enough layers given')
@@ -157,25 +181,20 @@ class NeuralNetwork(nn.Module):
 
 
     def forward(self, input_tensor):
-        maps = input_tensor.shape[1]
-        in_maps = self.input_maps(self.layer_list)
-        tensor = conv_conv(maps, in_maps, self.kernel_size)(input_tensor)
-
+        tensor = self.in_fun(input_tensor)
         down_tensors = []
         down_tensors.append(tensor)
-
-        for in_maps, out_maps in zip(self.layer_list, self.layer_list[1:]):
-            tensor = pool_conv_conv(in_maps, out_maps, self.kernel_size, self.pool_size)(tensor)
+        
+        for fun in self.down_funs:
+            tensor = fun(tensor)
             down_tensors.append(tensor)
 
-        rev_a = reversed(self.layer_list[1:])
-        rev_b = reversed(self.layer_list[:-1])
         rev_c = reversed(down_tensors[:-1])
         
-        for in_maps, out_maps, old_tens in zip(rev_a, rev_b, rev_c):
-            fun = up_copy_conv(in_maps, out_maps, self.kernel_size, self.up_kernel_size)
+        for fun, old_tens in zip(self.up_funs, rev_c):
             tensor = fun(tensor, old_tens)
 
-        tensor = conv_one(self.layer_list[0], 1)(tensor)
-
+        tensor = self.out_fun(tensor)
+        
+        print(np.shape(nn.ParameterList))
         return tensor
