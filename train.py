@@ -1,7 +1,7 @@
 import torch
 import network_builder as nb
 import load_imgs
-import numpy
+import numpy as np
 
 
 def train(model, X, y, criterion, optimiser):
@@ -19,8 +19,8 @@ def learn(epochs, model, X, y, criterion, optimiser):
         print("Epoch: ", t, ", Loss: ", err)
 
 #X, y  = load_imgs.torch_loader(load_imgs.train_dir, load_imgs.truth_dir, [0])
-X = torch.tensor(np.zeros((1, 3, 1200, 1800))).float()
-y = torch.tensor(np.zeros((1, 1, 1200, 1800))).float()
+X = torch.tensor(np.zeros((4, 3, 1200, 1800))).float()
+y = torch.tensor(np.zeros((4, 1, 1200, 1800))).float()
 model = nb.NeuralNetwork([3, 10, 20, 40, 80], 3, 2, 2)
 criterion = torch.nn.MSELoss(size_average=False)
 optimiser = torch.optim.SGD(model.parameters(), lr=1e-9)
